@@ -18,14 +18,38 @@ if not api_key:
 client = OpenAI(api_key=api_key)
 
 
+import re
+
 def crawl_job_posting(url: str) -> str:
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     response = httpx.get(url, headers=headers, follow_redirects=True, timeout=10)
     soup = BeautifulSoup(response.text, "html.parser")
-    for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
+
+    # 불필요한 태그 제거 
+    for tag in soup(["script", "style", "nav", "header", "footer", "aside", "iframe", "noscript"]):
         tag.decompose()
-    lines = [line.strip() for line in soup.get_text(separator="\n").splitlines() if line.strip()]
-    return "\n".join(lines)
+
+    # 노이즈 제거를 위한 전처리 
+    for tag in soup.find_all(class_=re.compile(r"(ad|banner|menu|nav|popup|cookie|sns|share|recommend)", re.I)):
+        tag.decompose()
+
+    text = soup.get_text(separator="\n")
+
+    # 특수문자 정리
+    text = re.sub(r"[^\w\s가-힣.,·\-/()%+]", " ", text)
+
+    # 반복 공백 및 빈 줄 제거
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+    # 중복 줄 제거
+    seen = set()
+    cleaned = []
+    for line in lines:
+        if line not in seen and len(line) > 1:
+            seen.add(line)
+            cleaned.append(line)
+
+    return "\n".join(cleaned)
 
 
 def extract_job_info(content: str) -> dict:
