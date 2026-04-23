@@ -1,0 +1,13 @@
+streamlit
+openai
+httpx
+beautifulsoup4
+pymupdf
+python-dotenv
+langchain
+langchain-openai
+langgraph
+fastapi
+uvicorn
+python-multipart
+cohere
