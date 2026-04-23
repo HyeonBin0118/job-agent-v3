@@ -121,8 +121,8 @@ JSON만 반환해.
     return json.loads(result)
 
 
-st.set_page_config(page_title="Job Agent v2", layout="wide")
-st.title("🤖 Job Agent v2")
+st.set_page_config(page_title="Job Agent v3", layout="wide")
+st.title("🤖 Job Agent v3")
 st.caption("채용공고 분석 · 이력서 매칭 · 자소서 생성 자동화")
 
 with st.sidebar:
