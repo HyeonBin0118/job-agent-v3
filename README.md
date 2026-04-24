@@ -2,7 +2,7 @@
 
 > 텍스트 전처리 강화 · 정량 평가 · 자소서 품질 자동 평가 · 다중 공고 비교
 
-🚀 라이브 데모: (배포 후 링크 추가 예정)
+🚀 라이브 데모: https://job-agent-v3-yzhg5h4dlyceriez67kudz.streamlit.app/
 
 ---
 
