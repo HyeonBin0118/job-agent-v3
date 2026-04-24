@@ -4,3 +4,5 @@ __pycache__/
 .pytest_cache/
 chroma_db/
 *.csv
+*.pdf
+.DS_Store

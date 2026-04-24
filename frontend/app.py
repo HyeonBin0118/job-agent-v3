@@ -6,6 +6,7 @@ import fitz
 import json
 import os
 from dotenv import load_dotenv
+import re
 
 load_dotenv()
 
@@ -18,8 +19,12 @@ if not api_key:
 client = OpenAI(api_key=api_key)
 
 
-import re
 
+"""
+    채용공고 URL에서 텍스트를 추출하고
+    광고/배너 클래스 제거, 특수문자 정리, 중복 줄 제거를 통해
+    GPT에 넘기는 입력 텍스트 품질을 높인다.
+    """
 def crawl_job_posting(url: str) -> str:
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     response = httpx.get(url, headers=headers, follow_redirects=True, timeout=10)
@@ -120,6 +125,31 @@ JSON만 반환해.
     result = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(result)
 
+def evaluate_cover_letter(cover_letter: dict, job_info: dict) -> dict:
+    """
+    생성된 자소서를 GPT로 자동 평가하고,
+    구체성, 직무 연관성, 구조/논리성 세 가지 지표로 점수를 산출한다.
+    """
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": f"""
+아래 자소서를 채용공고 기준으로 평가해줘.
+평가 항목:
+- specificity: 구체성 (0~10)
+- relevance: 직무 연관성 (0~10)
+- structure: 구조/논리성 (0~10)
+- total: 총점 (0~30)
+- feedback: 한 줄 피드백
+
+채용공고: {json.dumps(job_info, ensure_ascii=False)}
+자소서: {json.dumps(cover_letter, ensure_ascii=False)}
+JSON만 반환해.
+"""}],
+        temperature=0
+    )
+    result = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
+    return json.loads(result)
+
 
 st.set_page_config(page_title="Job Agent v3", layout="wide")
 st.title("🤖 Job Agent v3")
@@ -163,9 +193,9 @@ with st.sidebar:
                     st.error(f"분석 실패: {e}")
 
 result = st.session_state.get("result", None)
-tab1, tab2, tab3, tab4 = st.tabs(["📋 공고 분석", "📊 이력서 매칭", "✍️ 자소서 생성", "💬 AI 상담"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 공고 분석", "📊 이력서 매칭", "✍️ 자소서 생성", "💬 AI 상담", "🔀 공고 비교"])
 
-with tab1:
+with tab1:#📋 공고 분석
     st.subheader("채용공고 분석")
     if not result:
         st.info("사이드바에서 URL과 이력서를 입력하고 분석을 시작하세요.")
@@ -185,7 +215,7 @@ with tab1:
                 st.badge(skill)
         st.info(data.get("summary", ""))
 
-with tab2:
+with tab2: # 📊 이력서 매칭
     st.subheader("이력서 매칭 분석")
     if not result:
         st.info("사이드바에서 URL과 이력서를 입력하고 분석을 시작하세요.")
@@ -203,7 +233,7 @@ with tab2:
             for skill in match.get("missing_skills", []):
                 st.badge(skill)
 
-with tab3:
+with tab3: # ✍️ 자소서 생성
     st.subheader("자소서 초안")
     if not result:
         st.info("사이드바에서 URL과 이력서를 입력하고 분석을 시작하세요.")
@@ -213,7 +243,26 @@ with tab3:
             st.subheader(key)
             st.write(value)
 
-with tab4:
+        st.divider()
+        st.subheader("📊 자소서 품질 자동 평가")
+        if st.button("품질 평가 시작"):
+            with st.spinner("평가 중..."):
+                try:
+                    eval_result = evaluate_cover_letter(cover, result["job_info"])
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("구체성", f"{eval_result.get('specificity')}/10")
+                    with col2:
+                        st.metric("직무 연관성", f"{eval_result.get('relevance')}/10")
+                    with col3:
+                        st.metric("구조/논리성", f"{eval_result.get('structure')}/10")
+                    with col4:
+                        st.metric("총점", f"{eval_result.get('total')}/30")
+                    st.info(f"💬 {eval_result.get('feedback')}")
+                except Exception as e:
+                    st.error(f"평가 실패: {e}")
+
+with tab4:#💬 AI 상담
     st.subheader("💬 결과 기반 AI 상담")
     if not result:
         st.info("먼저 사이드바에서 분석을 완료해주세요.")
@@ -249,3 +298,58 @@ with tab4:
             reply = response.choices[0].message.content
             st.session_state["chat_history"].append({"role": "assistant", "content": reply})
             st.rerun()
+
+
+with tab5:# 🔀 공고 비교
+    st.subheader("🔀 다중 공고 비교")
+    st.caption("여러 공고를 동시에 분석해서 이력서와 가장 잘 맞는 공고를 찾아줍니다.")
+
+    if not result:
+        st.info("먼저 사이드바에서 이력서를 업로드하고 분석을 완료해주세요.")
+    else:
+        st.write("**추가 채용공고 URL 입력 (최대 3개)**")
+        url1 = st.text_input("공고 URL 1", key="compare_url1")
+        url2 = st.text_input("공고 URL 2", key="compare_url2")
+        url3 = st.text_input("공고 URL 3", key="compare_url3")
+
+        if st.button("공고 비교 시작", type="primary"):
+            urls = [u for u in [url1, url2, url3] if u.strip()]
+            if not urls:
+                st.warning("URL을 최소 1개 입력해주세요.")
+            else:
+                resume_text = result["resume_text"]
+                compare_results = []
+
+                with st.spinner(f"총 {len(urls)}개 공고 분석 중..."):
+                    for i, url in enumerate(urls):
+                        try:
+                            job_content = crawl_job_posting(url)
+                            job_info = extract_job_info(job_content)
+                            match = match_resume_to_job(resume_text, job_info)
+                            compare_results.append({
+                                "url": url,
+                                "company": job_info.get("company", "-"),
+                                "position": job_info.get("position", "-"),
+                                "score": match.get("score", 0),
+                                "matched": match.get("matched_skills", []),
+                                "missing": match.get("missing_skills", [])
+                            })
+                        except Exception as e:
+                            st.error(f"URL {i+1} 분석 실패: {e}")
+
+                if compare_results:
+                    compare_results.sort(key=lambda x: x["score"], reverse=True)
+                    st.subheader("📊 비교 결과")
+                    for idx, r in enumerate(compare_results):
+                        medal = ["🥇", "🥈", "🥉"][idx] if idx < 3 else "  "
+                        with st.expander(f"{medal} {r['company']} — {r['position']} ({r['score']}점)", expanded=idx==0):
+                            st.metric("매칭 점수", f"{r['score']} / 100")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.write("**✅ 보유 스킬**")
+                                for skill in r["matched"]:
+                                    st.badge(skill)
+                            with col2:
+                                st.write("**❌ 부족한 스킬**")
+                                for skill in r["missing"]:
+                                    st.badge(skill)

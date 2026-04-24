@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 
 JOB_URL = "https://www.jobkorea.co.kr/Recruit/GI_Read/49008149"
 
+# 잡코리아 특성상 자주 등장하는 UI/광고성 텍스트
 NOISE_KEYWORDS = [
     "로그인", "회원가입", "추천 공고", "광고", "배너", "공고 더보기",
     "스크랩", "지원하기", "관심기업", "채용달력", "이전", "다음", "공유"
