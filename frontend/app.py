@@ -233,14 +233,19 @@ with tab2: # 📊 이력서 매칭
             for skill in match.get("missing_skills", []):
                 st.badge(skill)
 
-with tab3: # ✍️ 자소서 생성
+with tab3:
     st.subheader("자소서 초안")
     if not result:
         st.info("사이드바에서 URL과 이력서를 입력하고 분석을 시작하세요.")
     else:
         cover = result["cover_letter"]
+        key_labels = {
+            "motivation": "지원동기",
+            "experience": "직무 관련 경험",
+            "goal": "입사 후 포부"
+        }
         for key, value in cover.items():
-            st.subheader(key)
+            st.subheader(key_labels.get(key, key))
             st.write(value)
 
         st.divider()
